@@ -38,31 +38,18 @@ fdescribe('Testing build.js:', () => {
         let electronBuilder;
         let requireSpy;
         let existsSyncSpy;
-
-
-        // this.locations = {
-        //     platformRootDir: platformRootDir,
-        //     root: this.root,
-        //     www: path.join(this.root, 'www'),
-        //     res: path.join(this.root, 'res'),
-        //     platformWww: path.join(this.root, 'platform_www'),
-        //     configXml: path.join(this.root, 'config.xml'),
-        //     defaultConfigXml: path.join(this.root, 'cordova/defaults.xml'),
-        //     build: path.join(this.root, 'build'),
-        //     buildRes: path.join(this.root, 'build-res'),
-        //     cache: path.join(this.root, 'cache'),
-        //     // NOTE: Due to platformApi spec we need to return relative paths here
-        //     cordovaJs: 'bin/templates/project/assets/www/cordova.js',
-        //     cordovaJsSrc: 'cordova-js-src'
-        // };
+        let emitSpy;
 
         const emptyObj = {};
-        const api = new Api(null, 'platform_www', '');
+        const api = new Api(null);
 
         beforeEach(() => {
             ElectronBuilder = build.__get__('ElectronBuilder');
 
             build.__set__({ require: requireSpy });
+
+            emitSpy = jasmine.createSpy('emit');
+            build.__set__('events', { emit: emitSpy });
         });
 
         it('should should be defined.', () => {
@@ -182,7 +169,7 @@ fdescribe('Testing build.js:', () => {
             const platformConfig = {
                 'mac': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release', store: 'store' } },
                 'win': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release' } },
-                'linux': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release' } },
+                'linux': { package: ['package', 'package2'], arch: 'arch' },
                 'darwin': {}
             };
             const buildConfig = {
@@ -235,7 +222,7 @@ fdescribe('Testing build.js:', () => {
             const platformConfig = {
                 'mac': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release', store: 'store' } },
                 'win': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release' } },
-                'linux': { package: ['package', 'package2'], arch: 'arch', signing: { debug: 'debug', release: 'release' } },
+                'linux': { package: ['package', 'package2'], arch: 'arch' },
                 'darwin': {}
             };
             const buildConfig = {
@@ -286,9 +273,9 @@ fdescribe('Testing build.js:', () => {
         it('should set configureUserBuildSettings for all 3 platforms without package.', () => {
             // mock platformConfig, buildConfig and buildOptions Objects
             const platformConfig = {
-                'mac': { arch: 'arch', signing: { debug: 'debug', release: 'release', store: 'store' } },
-                'win': { arch: 'arch', signing: { debug: 'debug', release: 'release' } },
-                'linux': { arch: 'arch', signing: { debug: 'debug', release: 'release' } }
+                mac: { arch: [ 'arch1', 'arch2' ], signing: { debug: 'debug', release: 'release', store: 'store' } },
+                windows: { arch: [ 'arch1', 'arch2' ], signing: { debug: 'debug', release: 'release' } },
+                linux: { arch: [ 'arch1', 'arch2' ] }
             };
             const buildConfig = {
                 electron: platformConfig,
@@ -300,13 +287,17 @@ fdescribe('Testing build.js:', () => {
                 APP_WWW_DIR: api.locations.www
             };
 
-            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+            const buildOptions = { debug: false, buildConfig: 'LOAD_MY_FAKE_DATA', argv: [] };
 
             // create spies
             existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
-            requireSpy = jasmine.createSpy('require').and.returnValue(buildConfig);
+            // requireSpy = jasmine.createSpy('require').and.returnValue();
             build.__set__('fs', { existsSync: existsSyncSpy });
-            build.__set__({ require: requireSpy });
+            
+            build.__set__('require', (file) => {
+                if (file === 'LOAD_MY_FAKE_DATA') return buildConfig;
+                return require(file);
+            });
 
             const __validateUserPlatformBuildSettingsSpy = jasmine.createSpy('__validateUserPlatformBuildSettings').and.returnValue(true);
             build.__set__({ __validateUserPlatformBuildSettings: __validateUserPlatformBuildSettingsSpy });
@@ -314,7 +305,7 @@ fdescribe('Testing build.js:', () => {
             electronBuilder = new ElectronBuilder(buildOptions, api).configureUserBuildSettings();
 
             expect(existsSyncSpy).toHaveBeenCalled();
-            expect(requireSpy).toHaveBeenCalled();
+            // expect(requireSpy).toHaveBeenCalled();
 
             expect(electronBuilder.userBuildSettings).toEqual(buildOptions);
         });
@@ -324,7 +315,7 @@ fdescribe('Testing build.js:', () => {
             const platformConfig = {
                 'mac': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: 'store' } },
                 'win': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release' } },
-                'linux': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release' } }
+                'linux': { package: ['package', 'package2'] }
             };
             const buildConfig = {
                 electron: platformConfig,
@@ -549,7 +540,7 @@ fdescribe('Testing build.js:', () => {
         });
 
         it('should fetchPlatformDefaults false.', () => {
-            // mock buildOptions and BuildConfig Object
+            // mock buildOptions Object
             const buildOptions = { debug: true, buildConfig: 'build.xml', argv: [] };
 
             // create spies
@@ -563,7 +554,320 @@ fdescribe('Testing build.js:', () => {
             expect(function () { electronBuilder.fetchPlatformDefaults('name'); }).toThrow(new Error('Your platform "name" is not supported as a default target platform for Electron.'));
         });
 
+        it('should __appendUserSingning linux signing.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'linux': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release' } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendUserSingning('linux', platformConfig.linux.signing, buildOptions);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+            expect(emitSpy).toHaveBeenCalled();
+            const actual = emitSpy.calls.argsFor(0)[1];
+            const expected = 'The provided signing information for the Linux platform is ignored. Linux does not support signing.';
+            expect(actual).toEqual(expected);
+        });
+
+        it('should __appendUserSingning mac with masconfig.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'darwin': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: { requirements: 'requirements' } } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendUserSingning('darwin', platformConfig.darwin.signing, buildOptions);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+        });
+
+        it('should append user singing for windows', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'win': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: { requirements: 'requirements' } } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendUserSingning('win', platformConfig.win.signing, buildOptions);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+        });
+
+        it('should set buildConfigs __appendMacUserSingning when files exist.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'darwin': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: { requirements: 'requirements' } } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            const config = {
+                debug: 'debug',
+                release: 'release',
+                identity: 'identify',
+                entitlements: 'entitlements',
+                entitlementsInherit: 'entitlementsInherit',
+                requirements: 'requirements',
+                provisioningProfile: 'provisioningProfile',
+                store: 'store'
+            };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendMacUserSingning(config, buildConfig);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+            expect(buildConfig.identity).toEqual(config.identity);
+            expect(buildConfig.entitlements).toEqual(config.entitlements);
+            expect(buildConfig.entitlementsInherit).toEqual(config.entitlementsInherit);
+            expect(buildConfig.requirements).toEqual(config.requirements);
+            expect(buildConfig.provisioningProfile).toEqual(config.provisioningProfile);
+        });
+
+        it('should emit warning when in __appendMacUserSingning when files does exist.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'darwin': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: { requirements: 'requirements' } } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            const config = {
+                debug: 'debug',
+                release: 'release',
+                entitlements: 'entitlements',
+                entitlementsInherit: 'entitlementsInherit',
+                requirements: 'requirements',
+                provisioningProfile: 'provisioningProfile',
+                store: 'store'
+            };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendMacUserSingning(config, buildConfig);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+            expect(emitSpy).toHaveBeenCalled();
+
+            expect(buildConfig.identity).toEqual(undefined);
+            expect(buildConfig.entitlements).toEqual(undefined);
+            expect(buildConfig.entitlementsInherit).toEqual(undefined);
+            expect(buildConfig.requirements).toEqual(undefined);
+            expect(buildConfig.provisioningProfile).toEqual(undefined);
+
+            const actualEntitlements = emitSpy.calls.argsFor(0)[1];
+            const expectedEntitlements = 'The provided entitlements file does not exist';
+            expect(actualEntitlements).toContain(expectedEntitlements);
+
+            const actualEntitlementsInherits = emitSpy.calls.argsFor(1)[1];
+            const expectedEntitlementsInherits = 'The provided entitlements inherit file does not exist';
+            expect(actualEntitlementsInherits).toContain(expectedEntitlementsInherits);
+
+            const actualRequirements = emitSpy.calls.argsFor(2)[1];
+            const expectedRequirements = 'The provided requirements file does not exist';
+            expect(actualRequirements).toContain(expectedRequirements);
+
+            const actualProvisioningProfile = emitSpy.calls.argsFor(3)[1];
+            const expectedProvisioningProfiles = 'The provided provisioning profile does not exist';
+            expect(actualProvisioningProfile).toContain(expectedProvisioningProfiles);
+        });
+
+        it('should set buildConfigs for windows singning when files exist.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'windows': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: 'requirements' } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            const config = {
+                debug: 'debug',
+                release: 'release',
+                identity: 'identify',
+                certificateFile: 'certificateFile',
+                certificatePassword: 'certificatePassword',
+                certificateSubjectName: 'certificateSubjectName',
+                certificateSha1: 'certificateSha1',
+                signingHashAlgorithms: 'signingHashAlgorithms',
+                additionalCertificateFile: 'additionalCertificateFile'
+            };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendWindowsUserSingning(config, buildConfig);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+
+            expect(buildConfig.certificateFile).toEqual(config.certificateFile);
+            expect(buildConfig.certificatePassword).toEqual(config.certificatePassword);
+            expect(buildConfig.certificateSubjectName).toEqual(config.certificateSubjectName);
+            expect(buildConfig.certificateSha1).toEqual(config.certificateSha1);
+            expect(buildConfig.signingHashAlgorithms).toEqual(config.signingHashAlgorithms);
+            expect(buildConfig.additionalCertificateFile).toEqual(config.additionalCertificateFile);
+        });
+
+        it('should set buildConfigs __appendWindowsUserSingning when files exist.', () => {
+            // mock platformConfig, buildConfig and buildOptions Objects
+            const platformConfig = {
+                'windows': { package: ['package', 'package2'], signing: { debug: 'debug', release: 'release', store: 'requirements' } }
+            };
+
+            const buildConfig = {
+                electron: platformConfig,
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: buildConfig, argv: [] };
+
+            const config = {
+                debug: 'debug',
+                release: 'release',
+                identity: 'identify',
+                certificateFile: 'certificateFile',
+                certificatePassword: 'certificatePassword',
+                certificateSubjectName: 'certificateSubjectName',
+                certificateSha1: 'certificateSha1',
+                signingHashAlgorithms: 'signingHashAlgorithms',
+                additionalCertificateFile: 'additionalCertificateFile'
+            };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendWindowsUserSingning(config, buildConfig);
+
+            expect(existsSyncSpy).toHaveBeenCalled();
+            expect(emitSpy).toHaveBeenCalled();
+
+            expect(buildConfig.certificateFile).toEqual(undefined);
+            expect(buildConfig.certificatePassword).toEqual(undefined);
+            expect(buildConfig.certificateSubjectName).toEqual(config.certificateSubjectName);
+            expect(buildConfig.certificateSha1).toEqual(config.certificateSha1);
+            expect(buildConfig.signingHashAlgorithms).toEqual(config.signingHashAlgorithms);
+            expect(buildConfig.additionalCertificateFile).toEqual(undefined);
+
+            const actualCertificateFile = emitSpy.calls.argsFor(0)[1];
+            const expectedCertificateFile = 'The provided certificate file does not exist';
+            expect(actualCertificateFile).toContain(expectedCertificateFile);
+
+            const actualAdditionalCertificateFile = emitSpy.calls.argsFor(1)[1];
+            const expectedAdditionalCertificateFile = 'The provided addition certificate file does not exist';
+            expect(actualAdditionalCertificateFile).toContain(expectedAdditionalCertificateFile);
+        });
+
+        it('should call build method.', () => {
+            // mock buildOptions Objecet
+            const buildOptions = { debug: true, buildConfig: 'build.xml', argv: [] };
+
+            // create spies
+            const buildSpy = jasmine.createSpy('build');
+            build.__set__('require', () => {
+                return { build: buildSpy };
+            });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).build();
+
+            expect(buildSpy).toHaveBeenCalled();
+        });
+    });
+
+    describe('Module exports run', () => {
         it('should build called.', () => {
+            let run = build.__get__('module.exports.run');
+
+            const api = new Api(null);
+
+            const logSpy = jasmine.createSpy('log');
+            build.__set__('console', { log: logSpy });
+
             // mock buildOptions Objecet
             const buildOptions = { debug: true, buildConfig: 'build.xml', argv: [] };
             const buildConfig = {
@@ -576,58 +880,30 @@ fdescribe('Testing build.js:', () => {
                 APP_WWW_DIR: api.locations.www
             };
 
-            // create spies
-            requireSpy = jasmine.createSpy('require');
-            build.__set__({ require: requireSpy });
+            run(this.buildConfig = buildConfig, api);
 
-            electronBuilder = new ElectronBuilder(buildOptions, api).build(this.buildConfig = buildConfig);
+            expect(logSpy).toHaveBeenCalled();
+        });
+    });
 
-            expect(requireSpy).toHaveBeenCalled();
-            // expect(buildSpy).toHaveBeenCalled();
+    describe('Module exports help', () => {
+        it('should display help usage.', () => {
+            let help = build.__get__('module.exports.help');
+
+            const argv = { binPath: 'bin' };
+
+            const logSpy = jasmine.createSpy('log');
+            build.__set__('console', { log: logSpy });
+
+            help(argv);
+
+            expect(logSpy).toHaveBeenCalled();
+
+            const actual = logSpy.calls.argsFor(0)[0];
+            expect(actual).toContain('--debug');
+            expect(actual).toContain('--release');
+            expect(actual).toContain('--nobuild');
+
         });
     });
 });
-
-
-            // Promise.resolve().then(function () {
-            //     const api = new Api(null, '', '');
-            //     this.locations = api.locations;
-            //     this.events = { emit: emitSpy };
-            //     this.config = api.config;
-            //     this.parser = api.parser;
-            //     this.parser.update_www = () => { return this; };
-            //     this.parser.update_project = () => { return this; };
-
-            //      const defaultConfigPathMock = path.join(api.locations.platformRootDir, 'cordova', 'defaults.xml');
-            //     const ownConfigPathMock = api.locations.configXml;
-
-            //      const copySyncSpy = jasmine.createSpy('copySync');
-            //     prepare.__set__('fs', {
-            //         existsSync: function (configPath) {
-            //             return configPath === ownConfigPathMock;
-            //         },
-            //         copySync: copySyncSpy
-            //     });
-
-            //      // override classes and methods called in modules.export.prepare
-            //     prepare.__set__('ConfigParser', FakeConfigParser);
-            //     prepare.__set__('xmlHelpers', xmlHelpersMock);
-            //     prepare.__set__('updateIcons', updateIconsFake);
-            //     prepare.__set__('ManifestJsonParser', FakeParser);
-            //     prepare.__set__('PackageJsonParser', FakeParser);
-            //     prepare.__set__('SettingJsonParser', FakeParser);
-
-            //      prepare.prepare(cordovaProject, {}, api);
-
-            //      expect(copySyncSpy).toHaveBeenCalledWith(ownConfigPathMock, defaultConfigPathMock);
-            //     expect(mergeXmlSpy).toHaveBeenCalled();
-            //     expect(updateIconsSpy).toHaveBeenCalled();
-            //     expect(constructorSpy).toHaveBeenCalled();
-            //     expect(configureSpy).toHaveBeenCalled();
-            //     expect(writeSpy).toHaveBeenCalled();
-
-            //      const actual = emitSpy.calls.argsFor(0)[1];
-            //     const expected = 'Generating defaults.xml';
-            //     expect(actual).toContain(expected);
-            // });
-
