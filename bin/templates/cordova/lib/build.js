@@ -39,7 +39,7 @@ const PLATFORM_MAPPING = {
     linux: 'linux',
     mac: 'darwin',
     windows: 'win32',
-    win: 'win'
+    win: 'win32'
 };
 
 class ElectronBuilder {
