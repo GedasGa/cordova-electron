@@ -22,7 +22,7 @@ const rewire = require('rewire');
 const path = require('path');
 const Api = rewire('../../../../../../bin/templates/cordova/Api');
 
-fdescribe('Testing build.js:', () => {
+describe('Testing build.js:', () => {
     let build;
 
     beforeEach(() => {
@@ -30,7 +30,21 @@ fdescribe('Testing build.js:', () => {
     });
 
     describe('deepMerge method', () => {
-        // deepMerge (mergeTo, mergeWith)
+        it('should deep merge objects and arrays.', () => {
+            const deepMerge = build.__get__('deepMerge');
+
+            const mergeTo = { foo: 'bar', abc: [ 1, 2, 3 ] };
+            const mergeWith = { food: 'candy', abc: [ 5 ] };
+
+            const actual = deepMerge(mergeTo, mergeWith);
+            const expected = {
+                foo: 'bar',
+                food: 'candy',
+                abc: [ 1, 2, 3, 5 ]
+            };
+
+            expect(actual).toEqual(expected);
+        });
     });
 
     describe('Build class', () => {
@@ -203,7 +217,7 @@ fdescribe('Testing build.js:', () => {
                     { target: 'package', arch: 'arch' },
                     { target: 'package2', arch: 'arch' }
                 ],
-               type: '${BUILD_TYPE}'
+                type: '${BUILD_TYPE}'
             };
             const expectedLinux = {
                 target: [
@@ -256,7 +270,7 @@ fdescribe('Testing build.js:', () => {
                     { target: 'package', arch: 'arch' },
                     { target: 'package2', arch: 'arch' }
                 ],
-               type: '${BUILD_TYPE}'
+                type: '${BUILD_TYPE}'
             };
             const expectedLinux = {
                 target: [
@@ -277,6 +291,7 @@ fdescribe('Testing build.js:', () => {
                 windows: { arch: [ 'arch1', 'arch2' ], signing: { debug: 'debug', release: 'release' } },
                 linux: { arch: [ 'arch1', 'arch2' ] }
             };
+
             const buildConfig = {
                 electron: platformConfig,
                 author: 'Apache',
@@ -293,7 +308,7 @@ fdescribe('Testing build.js:', () => {
             existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
             // requireSpy = jasmine.createSpy('require').and.returnValue();
             build.__set__('fs', { existsSync: existsSyncSpy });
-            
+
             build.__set__('require', (file) => {
                 if (file === 'LOAD_MY_FAKE_DATA') return buildConfig;
                 return require(file);
@@ -307,7 +322,71 @@ fdescribe('Testing build.js:', () => {
             expect(existsSyncSpy).toHaveBeenCalled();
             // expect(requireSpy).toHaveBeenCalled();
 
-            expect(electronBuilder.userBuildSettings).toEqual(buildOptions);
+            const expected = {
+                linux: [],
+                mac: [],
+                win: [],
+                config: {
+                    linux: {
+                        target: [
+                            {
+                                target: 'tar.gz',
+                                arch: [ 'arch1', 'arch2' ]
+                            }
+                        ]
+                    },
+                    mac: {
+                        type: '${BUILD_TYPE}',
+                        target: [
+                            {
+                                target: 'dmg',
+                                arch: [ 'arch1', 'arch2' ]
+                            },
+                            {
+                                target: 'zip',
+                                arch: [ 'arch1', 'arch2' ]
+                            }
+                        ]
+                    },
+                    win: {
+                        target: [
+                            {
+                                target: 'nsis',
+                                arch: [ 'arch1', 'arch2' ]
+                            }
+                        ]
+                    }
+                }
+            };
+
+            expect(electronBuilder.userBuildSettings).toEqual(expected);
+        });
+
+        it('should not set this.userBuildSettings.', () => {
+            const buildConfig = {
+                author: 'Apache',
+                name: 'Guy',
+                displayName: 'HelloWorld',
+                APP_BUILD_DIR: api.locations.build,
+                APP_BUILD_RES_DIR: api.locations.buildRes,
+                APP_WWW_DIR: api.locations.www
+            };
+
+            const buildOptions = { debug: false, buildConfig: 'LOAD_MY_FAKE_DATA', argv: [] };
+
+            // create spies
+            existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
+            // requireSpy = jasmine.createSpy('require').and.returnValue();
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            build.__set__('require', (file) => {
+                if (file === 'LOAD_MY_FAKE_DATA') return buildConfig;
+                return require(file);
+            });
+
+            electronBuilder = new ElectronBuilder(buildOptions, api).configureUserBuildSettings();
+
+            expect(electronBuilder.userBuildSettings).toBe(undefined);
         });
 
         it('should set configureUserBuildSettings for all 3 platforms without arch.', () => {
@@ -348,7 +427,7 @@ fdescribe('Testing build.js:', () => {
                     { target: 'package', arch: [ 'x64' ] },
                     { target: 'package2', arch: [ 'x64' ] }
                 ],
-               type: '${BUILD_TYPE}'
+                type: '${BUILD_TYPE}'
             };
             const expectedLinux = {
                 target: [
@@ -400,7 +479,7 @@ fdescribe('Testing build.js:', () => {
                     { target: 'package', arch: 'arch' },
                     { target: 'package2', arch: 'arch' }
                 ],
-               type: '${BUILD_TYPE}'
+                type: '${BUILD_TYPE}'
             };
             const expectedLinux = {
                 target: [
@@ -634,7 +713,7 @@ fdescribe('Testing build.js:', () => {
             existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(false);
             build.__set__('fs', { existsSync: existsSyncSpy });
 
-            electronBuilder = new ElectronBuilder(buildOptions, api).__appendUserSingning('win', platformConfig.win.signing, buildOptions);
+            electronBuilder = new ElectronBuilder(buildOptions, api).__appendUserSingning('win', platformConfig, buildOptions);
 
             expect(existsSyncSpy).toHaveBeenCalled();
         });
@@ -860,18 +939,13 @@ fdescribe('Testing build.js:', () => {
     });
 
     describe('Module exports run', () => {
-        it('should build called.', () => {
-            let run = build.__get__('module.exports.run');
-
+        it('should have called configure and build.', () => {
             const api = new Api(null);
-
-            const logSpy = jasmine.createSpy('log');
-            build.__set__('console', { log: logSpy });
-
-            // mock buildOptions Objecet
-            const buildOptions = { debug: true, buildConfig: 'build.xml', argv: [] };
+            const platformConfig = {
+                mac: { arch: [ 'x64' ] }
+            };
             const buildConfig = {
-                electron: 'electron',
+                electron: platformConfig,
                 author: 'Apache',
                 name: 'Guy',
                 displayName: 'HelloWorld',
@@ -880,9 +954,58 @@ fdescribe('Testing build.js:', () => {
                 APP_WWW_DIR: api.locations.www
             };
 
-            run(this.buildConfig = buildConfig, api);
+            const buildOptions = { debug: false, buildConfig: 'LOAD_MY_FAKE_DATA', argv: [] };
 
-            expect(logSpy).toHaveBeenCalled();
+            // create spies
+            const existsSyncSpy = jasmine.createSpy('existsSync').and.returnValue(true);
+            build.__set__('fs', { existsSync: existsSyncSpy });
+
+            build.__set__('require', (file) => {
+                if (file === 'LOAD_MY_FAKE_DATA') return buildConfig;
+                if (file === './check_reqs') return { run: () => Promise.resolve([]) };
+                return require(file);
+            });
+
+            const configureSpy = jasmine.createSpy('configure');
+            const buildSpy = jasmine.createSpy('build');
+
+            class ElectronBuilderMock {
+                configure () {
+                    configureSpy();
+                    return this;
+                }
+
+                build () {
+                    buildSpy();
+                    return this;
+                }
+            }
+
+            build.__set__('ElectronBuilder', ElectronBuilderMock);
+
+            build.run(buildOptions, api).then(() => {
+                expect(configureSpy).toHaveBeenCalled();
+                expect(buildSpy).toHaveBeenCalled();
+            });
+        });
+
+        it('should have failed requirement and console log error.', () => {
+            const api = new Api(null);
+            const buildOptions = { debug: false, buildConfig: 'LOAD_MY_FAKE_DATA', argv: [] };
+
+            // create spies
+            const logSpy = jasmine.createSpy('emit');
+            build.__set__('console', { log: logSpy });
+
+            build.__set__('require', (file) => {
+                // if (file === 'LOAD_MY_FAKE_DATA') return buildConfig;
+                if (file === './check_reqs') return { run: () => Promise.reject(new Error('Error')) };
+                return require(file);
+            });
+
+            build.run(buildOptions, api).then(() => {
+                expect(logSpy).toHaveBeenCalled();
+            });
         });
     });
 
