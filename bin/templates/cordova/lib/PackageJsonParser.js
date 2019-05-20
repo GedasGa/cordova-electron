@@ -36,10 +36,19 @@ class PackageJsonParser {
             this.package.version = config.version() || '1.0.0';
             this.package.description = config.description() || 'A sample Apache Cordova application that responds to the deviceready event.';
 
+            const authorEmail = config.doc.find('author') && config.doc.find('author').attrib && config.doc.find('author').attrib.email;
+
             this.configureHomepage(config);
             this.configureLicense(config);
 
-            this.package.author = config.author() || 'Apache Cordova Team';
+            if (authorEmail) {
+                this.package.author = {
+                    name: config.author() || 'Apache Cordova Team',
+                    email: config.doc.find('author').attrib.email
+                };
+            } else {
+                this.package.author = config.author() || 'Apache Cordova Team';
+            }
         }
 
         return this;
