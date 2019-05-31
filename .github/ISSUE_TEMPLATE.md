@@ -1,39 +1,35 @@
 <!--
-Please select an appropriate issue template when you click "New issue" in the GitHub UI.
-We would appreciate it if you could use one of the provided issue templates. Thank you!
+Please have a look at the issue templates you get when you click "New issue" in the GitHub UI.
+We very much prefer issues created by using one of these templates.
 -->
 
 ### Issue Type
-<!-- Please check the boxes by putting an `x` in the `[ ]` like so: `[x]` -->
+<!-- Please check the boxes by putting an x in the [ ] like so: [x] -->
 
 - [ ] Bug Report
 - [ ] Feature Request
 - [ ] Support Question
 
 ## Description
-<!-- Briefly describe an issue. -->
-
-
 
 ## Information
-<!-- Include all related information that might help understand and reproduce the problem. -->
-
-
+<!-- Include all relevant information that might help understand and reproduce the problem -->
 
 ### Command or Code
-<!-- Describe a use case(s) that causes this problem. What command or code reproduces the problem? -->
+<!-- What command or code is needed to reproduce the problem? -->
+
+### Environment, Platform, Device
+<!-- In what environment, on what platform or on which device are you experiencing the issue? -->
 
 
 
-### Environment and Versions
+### Version information
 <!-- 
-Describe your environment, platforms, devices and Operating System. 
-Include all versions of Cordova tooling, Operating System, also Third-Party tools and programs.
-
+What are relevant versions you are using?
 For example:
-Cordova: Cordova CLI v0.0.0, Cordova Platform v0.0.0, Cordova Plugin v0.0.0
-Other Tools/Frameworks: Ionic Framework 0.0.0 and Ionic CLI v0.0.0
-Operating System, Android Studio, Xcode, etc.
+Cordova: Cordova CLI, Cordova Platforms, Cordova Plugins 
+Other Frameworks: Ionic Framework and CLI version
+Operating System, Android Studio, Xcode etc.
 -->
 
 
@@ -41,7 +37,6 @@ Operating System, Android Studio, Xcode, etc.
 ## Checklist
 <!-- Please check the boxes by putting an `x` in the `[ ]` like so: `[x]` -->
 
-**Before submitting an issue, make sure to:**
-- [ ] Update all Cordova tooling to their most recent version
-- [ ] Search for already existing GitHub issues regarding your request
-- [ ] Include all the necessary information above
+- [ ] I searched for already existing GitHub issues about this
+- [ ] I updated all Cordova tooling to their most recent version
+- [ ] I included all the necessary information above
